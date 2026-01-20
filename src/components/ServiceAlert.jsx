@@ -87,14 +87,15 @@ export default function ServiceAlert() {
         return safeHtml.split(/<br\s*\/?>(?:\s*)/i).map(line => line.trim()).filter(Boolean);
     }
 
-    function AlertSection({heading, alerts, current, color, emptyText, iconColor }) {
+    function AlertSection({heading, alerts, current, color, emptyText }) {
         const alert = alerts[current] || { title: '', pubDate: '', description: '' };
         return (
             <div style={{ background: color, padding: '30px', height: '100%', width: '100%', boxSizing: 'border-box', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, minHeight: 0 }}>
-                <GridContainer style={{ height: '100%', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                    <GridItem small={4} medium={4} large={4}>
-                        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-                            <WarningIcon size={50} color={iconColor || '#fff'} />
+                <GridContainer style={{ height: '100%', width: '100%', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
+                    <GridItem small={2} medium={2} large={2}>
+                        <WarningIcon size={50} color={base.light.baseColors.frame.contrast}/>
+                    </GridItem>
+                    <GridItem small={2} medium={2} large={2}>
                             <div>
                                 <Heading as="h2" variant="title-2">{heading}</Heading>
                                 {alerts.length === 0 ? (
@@ -128,7 +129,6 @@ export default function ServiceAlert() {
                                     </div>
                                 )}
                             </div>
-                        </div>
                     </GridItem>
                 </GridContainer>
                 {alerts.length > 1 && (
@@ -153,7 +153,6 @@ export default function ServiceAlert() {
                     current={ongoingCurrent}
                     color={ongoingAlerts.length === 0 ? semantic.fill.success.tint : semantic.fill.negative.tint}
                     emptyText="Ingen pågående driftshendelser"
-                    iconColor={ongoingAlerts.length === 0 ? '#fff' : undefined}
                 />
             </div>
             <div style={{ flex: bothSections ? 1 : 2, minHeight: 0 }}>
@@ -163,7 +162,6 @@ export default function ServiceAlert() {
                     current={scheduledCurrent}
                     color={scheduledAlerts.length === 0 ? semantic.fill.success.tint : semantic.fill.warning.tint}
                     emptyText="Ingen planlagt vedlikedhold"
-                    iconColor={scheduledAlerts.length === 0 ? '#fff' : undefined}
                 />
             </div>
         </div>
