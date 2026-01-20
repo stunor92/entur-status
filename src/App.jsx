@@ -1,19 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {Heading} from "@entur/typography/beta";
 import {Contrast} from "@entur/layout";
 import ServiceAlert from './components/ServiceAlert';
 import {semantic} from "@entur/tokens";
 
 function App() {
-    // Hardcoded location for Bergen
-    const LOCATION = { name: 'Bergen', lat: 60.39299, lng: 5.32415 };
-    const [randomStaffImage, setRandomStaffImage] = useState(null);
-
-    // Staff image logic
     useEffect(() => {
-        const staffImages = ['/staff_woman.svg', '/staff_man.svg'];
-        const randomImage = staffImages[Math.floor(Math.random() * staffImages.length)];
-        setRandomStaffImage(randomImage);
+        const interval = setInterval(() => {
+            window.location.reload();
+        }, 300000); // 5 minutes
+        return () => clearInterval(interval);
     }, []);
 
     return (
