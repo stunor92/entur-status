@@ -2,10 +2,38 @@ import React, { useState, useEffect } from 'react';
 import {GridContainer, GridItem} from "@entur/grid";
 import {WarningIcon} from "@entur/icons";
 import {Heading, Text, UnorderedList, ListItem} from "@entur/typography/beta";
+import {base, semantic} from '@entur/tokens'
+
+function categorizeAlerts(items) {
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const ongoing = [];
+    const scheduled = [];
+    items.forEach(item => {
+        const pubDateStr = item.querySelector('pubDate')?.textContent;
+        const pubDate = pubDateStr ? new Date(pubDateStr) : null;
+        const endDateStr = item.querySelector('maintenanceEndDate')?.textContent;
+        const endDate = endDateStr ? new Date(endDateStr) : null;
+        // Ongoing: now is between pubDate and maintenanceEndDate, or pubDate is today and no endDate
+        if (
+            (pubDate && endDate && now >= pubDate && now <= endDate) ||
+            (pubDate && !endDate && pubDate.toISOString().slice(0, 10) === todayStr)
+        ) {
+            ongoing.push(item);
+        } else if (
+            pubDate && endDate && now < pubDate && now < endDate
+        ) {
+            scheduled.push(item);
+        }
+    });
+    return { ongoing, scheduled };
+}
 
 export default function ServiceAlert() {
-    const [alerts, setAlerts] = useState([]);
-    const [current, setCurrent] = useState(0);
+    const [ongoingAlerts, setOngoingAlerts] = useState([]);
+    const [scheduledAlerts, setScheduledAlerts] = useState([]);
+    const [ongoingCurrent, setOngoingCurrent] = useState(0);
+    const [scheduledCurrent, setScheduledCurrent] = useState(0);
 
     useEffect(() => {
         async function fetchEnturStatus() {
@@ -15,36 +43,17 @@ export default function ServiceAlert() {
                 const parser = new window.DOMParser();
                 const xml = parser.parseFromString(text, 'application/xml');
                 const items = Array.from(xml.querySelectorAll('item'));
-                // Only show alerts for today or those between <pubDate> and <maintenanceEndDate>
-                const now = new Date();
-                const todayStr = now.toISOString().slice(0, 10);
-                const filteredAlerts = items.filter(item => {
-                    const pubDateStr = item.querySelector('pubDate')?.textContent;
-                    const pubDate = pubDateStr ? new Date(pubDateStr) : null;
-                    const endDateStr = item.querySelector('maintenanceEndDate')?.textContent;
-                    const endDate = endDateStr ? new Date(endDateStr) : null;
-                    // Ongoing: now is between pubDate and maintenanceEndDate
-                    if (pubDate && endDate && now >= pubDate && now <= endDate) {
-                        return true;
-                    }
-                    // Planned: now is before pubDate and maintenanceEndDate exists
-                    if (pubDate && endDate && now < pubDate && now < endDate) {
-                        return true;
-                    }
-                    // Show if pubDate is today
-                    if (pubDate && pubDate.toISOString().slice(0, 10) === todayStr) {
-                        return true;
-                    }
-                    return false;
-                });
-                const latestAlerts = filteredAlerts.slice(0, 3).map(item => ({
+                const { ongoing, scheduled } = categorizeAlerts(items);
+                const mapAlert = item => ({
                     title: item.querySelector('title')?.textContent || '',
                     pubDate: item.querySelector('pubDate')?.textContent || '',
                     description: item.querySelector('description')?.textContent || ''
-                }));
-                setAlerts(latestAlerts);
+                });
+                setOngoingAlerts(ongoing.slice(0, 3).map(mapAlert));
+                setScheduledAlerts(scheduled.slice(0, 3).map(mapAlert));
             } catch (e) {
-                setAlerts([]);
+                setOngoingAlerts([]);
+                setScheduledAlerts([]);
             }
         }
         fetchEnturStatus();
@@ -52,72 +61,111 @@ export default function ServiceAlert() {
         return () => clearInterval(interval);
     }, []);
 
-    // Carousel logic
+    // Carousel logic for ongoing
     useEffect(() => {
-        if (alerts.length > 1) {
+        if (ongoingAlerts.length > 1) {
             const carouselInterval = setInterval(() => {
-                setCurrent((prev) => (prev + 1) % alerts.length);
-            }, 30000); // Change alert every 30 seconds
+                setOngoingCurrent((prev) => (prev + 1) % ongoingAlerts.length);
+            }, 30000);
             return () => clearInterval(carouselInterval);
         }
-    }, [alerts]);
+    }, [ongoingAlerts]);
+    // Carousel logic for scheduled
+    useEffect(() => {
+        if (scheduledAlerts.length > 1) {
+            const carouselInterval = setInterval(() => {
+                setScheduledCurrent((prev) => (prev + 1) % scheduledAlerts.length);
+            }, 30000);
+            return () => clearInterval(carouselInterval);
+        }
+    }, [scheduledAlerts]);
 
-    if (alerts.length === 0) return null;
-    const alert = alerts[current] || { title: '', pubDate: '', description: '' };
     // Helper: Parse <description> as multiple events (split by <br> or <br/> or <br />)
     function parseDescriptionEvents(html) {
-        // Remove unwanted tags, keep <b>, <strong>, <i>, <em>, <a>, <br>
         let safeHtml = html.replace(/<(?!\/?(b|strong|i|em|a|br)(\s|>|$))[^>]+>/gi, '')
-                            .replace(/<a ([^>]+)>/gi, '<a $1 target="_blank" rel="noopener noreferrer">');
-        // Split on <br>, <br/>, <br />
+            .replace(/<a ([^>]+)>/gi, '<a $1 target="_blank" rel="noopener noreferrer">');
         return safeHtml.split(/<br\s*\/?>(?:\s*)/i).map(line => line.trim()).filter(Boolean);
     }
-    return (
-        <div style={{ background: '#ff5959', padding: '30px', height: alerts.length > 0 ? '500px' : 'auto', width: '100vw', boxSizing: 'border-box' }}>
-            <GridContainer spacing={"medium"} style={{ display: 'flex', height: '200px' }}>
-                <GridItem small={2} medium={2} large={2}>
-                    <WarningIcon size={50}/>
-                </GridItem>
-                <GridItem small={2} medium={2} large={2}>
-                    <Heading as="h3" variant="subtitle-1" >Driftstatus</Heading>
-                    <Heading as="h4" variant="section-1" >{alert.title || 'Ingen statusmelding'}</Heading>
-                    <Text variant="caption" spacing="sm">{alert.pubDate}</Text>
 
-                    {/* Use parsed events for formatted output as a list */}
-                    <UnorderedList>
-                        {parseDescriptionEvents(alert.description).map((line, idx) => {
-                            // Match format: [Date][Type] - [Message]
-                            // Example: Jan 16, 08:34 CET Resolved - Entur App og Entur Web fungerer nå som normalt igjen.
-                            const match = line.match(/^([A-Z][a-z]{2} \d{1,2}, \d{2}:\d{2} [A-Z]{3})\s+([A-Za-zæøåÆØÅ ]+?)\s*-\s*(.*)$/);
-                            let title, message;
-                            if (match) {
-                                title = match[1] + ' ' + match[2];
-                                message = match[3];
-                            } else {
-                                // fallback: try to extract status keyword as title
-                                const statusMatch = line.match(/^(Completed|In progress|Update|Scheduled|Resolved|Investigating)[:\-]?\s*/i);
-                                if (statusMatch) {
-                                    title = statusMatch[1];
-                                    message = line.replace(statusMatch[0], '').trim();
-                                } else {
-                                    title = undefined;
-                                    message = line;
-                                }
-                            }
-                            return (
-                                <ListItem key={idx} title={title}><span dangerouslySetInnerHTML={{ __html: message }} /></ListItem>
-                            );
-                        })}
-                    </UnorderedList>
-                </GridItem>
-            </GridContainer>
-            {alerts.length > 1 && (
-                <div style={{ marginTop: '12px', fontWeight: 'normal', fontSize: '0.8rem', width: '100%', position: 'absolute', left: 0, right: 0, bottom: 24, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>
-                    {alerts.map((_, idx) => (
-                        <span key={idx} style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: idx === current ? 'white' : 'rgba(255,255,255,0.4)', margin: '0 4px' }} />
-                    ))}
-                </div>
-            )}
+    function AlertSection({heading, alerts, current, color, emptyText, iconColor }) {
+        const alert = alerts[current] || { title: '', pubDate: '', description: '' };
+        return (
+            <div style={{ background: color, padding: '30px', height: '100%', width: '100%', boxSizing: 'border-box', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, minHeight: 0 }}>
+                <GridContainer style={{ height: '100%', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
+                    <GridItem small={4} medium={4} large={4}>
+                        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                            <WarningIcon size={50} color={iconColor || '#fff'} />
+                            <div>
+                                <Heading as="h2" variant="title-2">{heading}</Heading>
+                                {alerts.length === 0 ? (
+                                    <Heading as="h3" variant="subtitle-1">{emptyText}</Heading>
+                                ) : (
+                                    <div>
+                                        <Heading as="h3" variant="subtitle-1">{alert.title}</Heading>
+                                        <Text variant="caption" spacing="sm">{alert.pubDate}</Text>
+                                        <UnorderedList>
+                                            {parseDescriptionEvents(alert.description).map((line, idx) => {
+                                                const match = line.match(/^([A-Z][a-z]{2} \d{1,2}, \d{2}:\d{2} [A-Z]{3})\s+([A-Za-zæøåÆØÅ ]+?)\s*-\s*(.*)$/);
+                                                let title, message;
+                                                if (match) {
+                                                    title = match[1] + ' ' + match[2];
+                                                    message = match[3];
+                                                } else {
+                                                    const statusMatch = line.match(/^(Completed|In progress|Update|Scheduled|Resolved|Investigating)[:\-]?\s*/i);
+                                                    if (statusMatch) {
+                                                        title = statusMatch[1];
+                                                        message = line.replace(statusMatch[0], '').trim();
+                                                    } else {
+                                                        title = undefined;
+                                                        message = line;
+                                                    }
+                                                }
+                                                return (
+                                                    <ListItem key={idx} title={title}><span dangerouslySetInnerHTML={{ __html: message }} /></ListItem>
+                                                );
+                                            })}
+                                        </UnorderedList>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </GridItem>
+                </GridContainer>
+                {alerts.length > 1 && (
+                    <div style={{ marginTop: '12px', fontWeight: 'normal', fontSize: '0.8rem', width: '100%', position: 'absolute', left: 0, right: 0, bottom: 24, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>
+                        {alerts.map((_, idx) => (
+                            <span key={idx} style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: idx === current ? 'white' : 'rgba(255,255,255,0.4)', margin: '0 4px' }} />
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // Layout: stack vertically, each section fills half if both exist, or all if only one
+    const bothSections = ongoingAlerts.length > 0 && scheduledAlerts.length > 0;
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+            <div style={{ flex: bothSections ? 1 : 2, minHeight: 0 }}>
+                <AlertSection
+                    heading="Pågående hendelser"
+                    alerts={ongoingAlerts}
+                    current={ongoingCurrent}
+                    color={ongoingAlerts.length === 0 ? semantic.fill.success.tint : semantic.fill.negative.tint}
+                    emptyText="Ingen pågående driftshendelser"
+                    iconColor={ongoingAlerts.length === 0 ? '#fff' : undefined}
+                />
+            </div>
+            <div style={{ flex: bothSections ? 1 : 2, minHeight: 0 }}>
+                <AlertSection
+                    heading="Planlagt vedlikehold"
+                    alerts={scheduledAlerts}
+                    current={scheduledCurrent}
+                    color={scheduledAlerts.length === 0 ? semantic.fill.success.tint : semantic.fill.warning.tint}
+                    emptyText="Ingen planlagt vedlikedhold"
+                    iconColor={scheduledAlerts.length === 0 ? '#fff' : undefined}
+                />
+            </div>
         </div>
     );
 }
