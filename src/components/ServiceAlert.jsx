@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {GridContainer, GridItem} from "@entur/grid";
-import {WarningIcon} from "@entur/icons";
+import {CalendarIcon, WarningIcon} from "@entur/icons";
 import {Heading, Text, UnorderedList, ListItem} from "@entur/typography/beta";
 import {base, semantic} from '@entur/tokens'
 
@@ -87,48 +87,53 @@ export default function ServiceAlert() {
         return safeHtml.split(/<br\s*\/?>(?:\s*)/i).map(line => line.trim()).filter(Boolean);
     }
 
-    function AlertSection({heading, alerts, current, color, emptyText }) {
+    function AlertSection({heading, alerts, current, color, emptyText, iconType }) {
         const alert = alerts[current] || { title: '', pubDate: '', description: '' };
         return (
             <div style={{ background: color, padding: '30px', height: '100%', width: '100%', boxSizing: 'border-box', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, minHeight: 0 }}>
-                <GridContainer style={{ height: '100%', width: '100%', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
+                <GridContainer style={{ height: '100%', width: '70%', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
                     <GridItem small={2} medium={2} large={2}>
-                        <WarningIcon size={50} color={base.light.baseColors.frame.contrast}/>
+                        {iconType === 'calendar' && (
+                            <CalendarIcon size={50} color={base.light.baseColors.frame.contrast}/>
+                        )}
+                        {iconType === 'warning' && (
+                            <WarningIcon size={50} color={base.light.baseColors.frame.contrast}/>
+                        )}
                     </GridItem>
-                    <GridItem small={2} medium={2} large={2}>
-                            <div>
-                                <Heading as="h2" variant="title-2">{heading}</Heading>
-                                {alerts.length === 0 ? (
-                                    <Heading as="h3" variant="subtitle-1">{emptyText}</Heading>
-                                ) : (
-                                    <div>
-                                        <Heading as="h3" variant="subtitle-1">{alert.title}</Heading>
-                                        <Text variant="caption" spacing="sm">{alert.pubDate}</Text>
-                                        <UnorderedList>
-                                            {parseDescriptionEvents(alert.description).map((line, idx) => {
-                                                const match = line.match(/^([A-Z][a-z]{2} \d{1,2}, \d{2}:\d{2} [A-Z]{3})\s+([A-Za-zæøåÆØÅ ]+?)\s*-\s*(.*)$/);
-                                                let title, message;
-                                                if (match) {
-                                                    title = match[1] + ' ' + match[2];
-                                                    message = match[3];
+                    <GridItem small={10} medium={10} large={10}>
+                        <div>
+                            <Heading as="h2" variant="title-2">{heading}</Heading>
+                            {alerts.length === 0 ? (
+                                <Heading as="h3" variant="subtitle-1">{emptyText}</Heading>
+                            ) : (
+                                <div>
+                                    <Heading as="h3" variant="subtitle-1">{alert.title}</Heading>
+                                    <Text variant="caption" spacing="sm">{alert.pubDate}</Text>
+                                    <UnorderedList>
+                                        {parseDescriptionEvents(alert.description).map((line, idx) => {
+                                            const match = line.match(/^([A-Z][a-z]{2} \d{1,2}, \d{2}:\d{2} [A-Z]{3})\s+([A-Za-zæøåÆØÅ ]+?)\s*-\s*(.*)$/);
+                                            let title, message;
+                                            if (match) {
+                                                title = match[1] + ' ' + match[2];
+                                                message = match[3];
+                                            } else {
+                                                const statusMatch = line.match(/^(Completed|In progress|Update|Scheduled|Resolved|Investigating)[:\-]?\s*/i);
+                                                if (statusMatch) {
+                                                    title = statusMatch[1];
+                                                    message = line.replace(statusMatch[0], '').trim();
                                                 } else {
-                                                    const statusMatch = line.match(/^(Completed|In progress|Update|Scheduled|Resolved|Investigating)[:\-]?\s*/i);
-                                                    if (statusMatch) {
-                                                        title = statusMatch[1];
-                                                        message = line.replace(statusMatch[0], '').trim();
-                                                    } else {
-                                                        title = undefined;
-                                                        message = line;
-                                                    }
+                                                    title = undefined;
+                                                    message = line;
                                                 }
-                                                return (
-                                                    <ListItem key={idx} title={title}><span dangerouslySetInnerHTML={{ __html: message }} /></ListItem>
-                                                );
-                                            })}
-                                        </UnorderedList>
-                                    </div>
-                                )}
-                            </div>
+                                            }
+                                            return (
+                                                <ListItem key={idx} title={title}><span dangerouslySetInnerHTML={{ __html: message }} /></ListItem>
+                                            );
+                                        })}
+                                    </UnorderedList>
+                                </div>
+                            )}
+                        </div>
                     </GridItem>
                 </GridContainer>
                 {alerts.length > 1 && (
@@ -153,6 +158,7 @@ export default function ServiceAlert() {
                     current={ongoingCurrent}
                     color={ongoingAlerts.length === 0 ? semantic.fill.success.tint : semantic.fill.negative.tint}
                     emptyText="Ingen pågående driftshendelser"
+                    iconType="warning"
                 />
             </div>
             <div style={{ flex: bothSections ? 1 : 2, minHeight: 0 }}>
@@ -162,6 +168,7 @@ export default function ServiceAlert() {
                     current={scheduledCurrent}
                     color={scheduledAlerts.length === 0 ? semantic.fill.success.tint : semantic.fill.warning.tint}
                     emptyText="Ingen planlagt vedlikedhold"
+                    iconType="calendar"
                 />
             </div>
         </div>
